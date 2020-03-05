@@ -1,0 +1,115 @@
+/*******************************************************************************
+ * Instrument: ManMandrill_CDI
+*
+* %I
+* Written by: Giovanni Fevola
+* Date: <current date>
+* Origin: DTU Energy
+* Release: McXtrace 1.5
+* Version: 1.0
+* %INSTRUMENT_SITE: Templates
+*
+* <instrument short description>
+*
+* %D
+* <instrument description>
+*
+* Example: <parameters=values>
+*
+* %P
+* detSize: [m]   Length of the edge of the square detector.
+* ...
+* 
+* %L
+* <reference/HTML link>
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT ManMandrill_CDI(detSize=2e-3)
+
+DECLARE
+%{
+#define NX 200
+#define NY 200
+	double w,focSize,xc,pixEffSize;
+	double obj_size;
+	double hitPixX, hitPixY;
+	double pixSize;
+	double dispX, dispY;
+%}
+
+INITIALIZE
+%{	
+	w=1e-9;
+	obj_size=8e-6;
+	
+	pixSize=detSize/NX;
+	xc=pixSize/2;
+	pixEffSize=w/10;
+%}
+
+TRACE
+
+
+COMPONENT origin = Progress_bar()
+AT (0, 0, 0) RELATIVE ABSOLUTE
+
+EXTEND
+%{
+	/*focus on a single (but random) pixel*/
+	hitPixX=round(randpm1()*NX/2);
+	hitPixY=round(randpm1()*NY/2);
+	
+	/* Properly shifted focus*/
+	dispX=hitPixX*pixSize+0.5*pixSize;
+	dispY=hitPixY*pixSize+0.5*pixSize;
+
+        MC_GETPAR(focus,focus_x0)=dispX+xc;
+        MC_GETPAR(focus,focus_y0)=dispY+xc;
+
+%}
+COMPONENT source_div0 = Source_div(
+    xwidth=8e-6, 
+    yheight=8e-6, 
+    focus_aw=0, 
+    focus_ah=0, 
+    E0=12.4, 
+    randomphase=0)
+AT (0, 0, 0) ABSOLUTE
+
+
+COMPONENT complex_Object = Complex_Mask(
+	xwidth=obj_size,
+	yheight=obj_size,
+	mask_r="Masks/McMandrill_s.dat",
+	mask_i="Masks/McMan_pi_s.dat",	
+	invert=0
+)
+AT (0, 0, 1) ABSOLUTE
+
+
+COMPONENT focus = Focus(
+    dist=5, 
+    focus_xw=pixEffSize, 
+    focus_yh=pixEffSize,
+    focus_x0=dispX,
+    focus_y0=dispY
+)
+AT (xc, xc, 1) ABSOLUTE
+
+COMPONENT psd_monitor_coh = PSD_monitor_coh(
+    nx=NX,  
+    ny=NY,
+    filename="lastDet",
+    restore_xray=1,
+    xwidth=detSize,
+    yheight=detSize)
+AT (xc, xc, 6) ABSOLUTE
+
+
+
+FINALLY
+%{
+%}
+
+END

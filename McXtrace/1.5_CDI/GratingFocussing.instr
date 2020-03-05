@@ -1,0 +1,354 @@
+/*******************************************************************************
+* Instrument: <instrument name>
+*
+* %I
+* Written by: <your name (email)>
+* Date: <current date>
+* Origin: <your institution>
+* Release: <McXtrace V.X.X>
+* Version: <instrument version>
+* %INSTRUMENT_SITE: Templates
+*
+* <instrument short description>
+*
+* %D
+* <instrument description>
+*
+* Example: <parameters=values>
+*
+* %P
+* <parameter1>: [<unit>] <parameter1 description>
+* ...
+* 
+* %L
+* <reference/HTML link>
+*
+* %E
+*******************************************************************************/
+DEFINE INSTRUMENT template_body_simple(pes=-10)
+
+DECLARE
+%{
+
+	double w,detSize,focSize,d,sourceSel,n,xc,pixEffSize;
+	double hitPixX, hitPixY;
+	double pixSize;
+	double dispX, dispY;
+	double pes;
+%}
+
+INITIALIZE
+%{
+	d=1e-6;
+	w=1e-9;
+	detSize=10e-3;
+	focSize=0.95*detSize;
+	n=25;
+	xc=2*d;
+	pixSize=detSize/800;
+	//pixEffSize=20*pixSize;
+	pixEffSize=pow(10,pes);
+
+%}
+
+TRACE
+
+
+COMPONENT origin = Progress_bar()
+AT (0, 0, 0) RELATIVE ABSOLUTE
+
+EXTEND
+%{
+	sourceSel=floor(n*rand01());			//select source for grating
+	hitPixX=round(randpm1()*400);			
+	hitPixY=round(randpm1()*400);
+	//printf("Drawn pixel (x,y)=(%g,%g)\n", hitPixX,hitPixY);
+	//dispX=hitPixX*50*pixSize;
+	//dispY=hitPixY*50*pixSize;
+	dispX=hitPixX*pixSize+0.5*pixSize;
+	dispY=hitPixY*pixSize+0.5*pixSize;
+
+
+
+	//printf("1Drawn pixel positions (x,y)=(%g,%g)\n", dispX,dispY );
+
+        MC_GETPAR(focus,focus_x0)=dispX;
+        MC_GETPAR(focus,focus_y0)=dispY;
+
+%}
+
+
+
+
+
+COMPONENT source_div0 = Source_div(
+    xwidth=w, 
+    yheight=w, 
+    focus_aw=0, 
+    focus_ah=0, 
+    E0=12.4, 
+    randomphase=0)
+WHEN(sourceSel==0) AT (0, 0, 0) ABSOLUTE
+
+
+
+
+/*
+COMPONENT source_div1 = Source_div(
+    xwidth=110*w, 
+    yheight=w, 
+    focus_aw=0, 
+    focus_ah=0, 
+    E0=12.4, 
+    randomphase=0)
+WHEN(sourceSel>0.5) AT (0, d/2, 0) ABSOLUTE
+
+
+/*COMPONENT source_div2 = Source_div(
+    xwidth=110*w, 
+    yheight=w, 
+    focus_aw=0, 
+    focus_ah=0, 
+    E0=12.4, 
+    randomphase=0)
+WHEN(sourceSel<0.5) AT (0, -d/2, 0) ABSOLUTE
+*/
+/*
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==1) AT (0,d,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==2) AT (0,2*d,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==3) AT (0,3*d,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==4) AT (0,4*d,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==5) AT (d,0,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==6) AT (d,d,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==7) AT (d,2*d,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==8) AT (d,3*d,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==9) AT (d,4*d,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+    E0=12.4, 
+    randomphase=0)
+WHEN(sourceSel==0) AT (0, 0, 0) ABSOLUTE
+
+
+/*
+COMPONENT source_div1 = Source_div(
+    xwidth=110*w, 
+    yheight=w, 
+    focus_aw=0, 
+    focus_ah=0, 
+    E0=12.4, 
+    randomphase=0)
+WHEN(sourceSel>0.5) AT (0, d/2, 0) ABSOLUTE
+
+
+/*COMPONENT source_div2 = Source_div(
+    xwidth=110*w, 
+    yheight=w, 
+    focus_aw=0, 
+    focus_ah=0, 
+    E0=12.4, 
+    randomphase=0)
+WHEN(sourceSel<0.5) AT (0, -d/2, 0) ABSOLUTE
+*/
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==1) AT (0,d,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==2) AT (0,2*d,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==3) AT (0,3*d,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==4) AT (0,4*d,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==5) AT (d,0,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==6) AT (d,d,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==7) AT (d,2*d,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==8) AT (d,3*d,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==9) AT (d,4*d,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==10) AT (2*d,0,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==11) AT (2*d,d,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==12) AT (2*d,2*d,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==13) AT (2*d,3*d,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==14) AT (2*d,4*d,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==15) AT (3*d,0,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==16) AT (3*d,d,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==17) AT (3*d,2*d,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==18) AT (3*d,3*d,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==19) AT (3*d,4*d,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==20) AT (4*d,0,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==21) AT (4*d,d,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==22) AT (4*d,2*d,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==23) AT (4*d,3*d,0) ABSOLUTE
+
+COMPONENT COPY(source_div0) = COPY(source_div0)
+WHEN(sourceSel==24) AT (4*d,4*d,0) ABSOLUTE
+
+/*
+COMPONENT focus = Focus(
+    dist=1, 
+    focus_xw=0.1*detSize, 
+    focus_yh=0.1*detSize,
+    focus_x0=0,
+    focus_y0=0
+)
+AT (xc, xc, 0) ABSOLUTE
+*/
+
+
+COMPONENT focus = Focus(
+    dist=10, 
+    focus_xw=pixEffSize, 
+    focus_yh=pixEffSize,
+    focus_x0=dispX,
+    focus_y0=dispY
+)
+WHEN(1) AT (xc, xc, 0) ABSOLUTE 
+
+//SETTING PARAMETERS (focus_x0=dispX, focus_y0=dispY)
+
+EXTEND
+%{	
+	//printf("2Drawn pixel positions (x,y)=(%g,%g)\n", focus_x0,focus_y0);
+%}
+
+/*
+COMPONENT source_div = Source_div(
+    xwidth=110*w, 
+    yheight=d*1.1+2*w, 
+    focus_aw=0, 
+    focus_ah=0, 
+    E0=12, 
+    randomphase=0)
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+
+
+COMPONENT slit1 = Slit(
+    xwidth=100*w, 
+    yheight=w,
+    dist=1,
+    focus_xw=focSize, 
+    focus_yh=focSize 
+)
+AT (0, d/2, 1) ABSOLUTE 
+GROUP slits
+
+
+
+COMPONENT slit2 = Slit(
+    xwidth=100*w, 
+    yheight=w,
+    dist=1,
+    focus_xw=focSize, 
+    focus_yh=focSize 
+)
+AT (0, -d/2, 1) ABSOLUTE 
+GROUP slits
+*/
+
+
+COMPONENT psd_monitor_cohSlit = PSD_monitor_coh(
+    nx=500,  
+    ny=500, 
+    filename="slitDet",
+    restore_xray=1, 
+    xwidth=5*d, 
+    yheight=5*d 
+)
+AT (xc, xc, 0) ABSOLUTE
+
+
+
+COMPONENT psd_monitor_coh = PSD_monitor_coh(
+    nx=800,  
+    ny=800, 
+    filename="lastDet", 
+    restore_xray=1,    
+    xwidth=detSize, 
+    yheight=detSize)
+AT (xc, xc, 10) ABSOLUTE
+
+/*
+
+COMPONENT psd_monitor_coh2 = PSD_monitor_coh(
+    nx=800,  
+    ny=800, 
+    filename="detailLastDet", 
+    restore_xray=1,    
+    xwidth=detSize/100, 
+    yheight=detSize/100)
+AT (xc, xc, 1) ABSOLUTE
+
+/*
+COMPONENT psd_monitor_cohSmall = PSD_monitor_coh(
+    nx=800,  
+    ny=800, 
+    filename="TinyDet", 
+    restore_xray=1,    
+    xwidth=1.1*pixEffSize, 
+    yheight=1.1*pixEffSize)
+AT (xc, xc, 1) ABSOLUTE
+*/
+
+FINALLY
+%{
+%}
+
+END
