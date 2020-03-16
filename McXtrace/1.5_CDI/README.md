@@ -3,7 +3,7 @@
 <code>ManMandrill_CDI.instr</code> constitutes an example of using McXtrace to simulate Coherent
 Diffraction Imaging. A completely coherent beam is allowed to impinge on a a Phase/Absorption object.
 The objects itself consists of a mathematical plane which absorbs according to the gray scale in an
-image of a baboon, wherea the pahse is advanced by the gray scale value of the image of a man in a medieval costume of sorts (apparently peeling an orange).
+image of a baboon, wherea the phase is advanced by the gray scale value of the image of a man in a medieval costume of sorts (apparently peeling an orange).
 
 Both images may be found in the Masks directory.
 
