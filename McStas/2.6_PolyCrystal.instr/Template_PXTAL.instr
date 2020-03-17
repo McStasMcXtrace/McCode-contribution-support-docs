@@ -1,0 +1,393 @@
+/***************************************************************************
+*
+* Written by: A. Cereser and E. Knudsen
+* September 2013 - February 2016
+* Written at DTU and J-PARC
+*
+* Instrument: Template_PXTAL
+*
+* mcstas ./BL18_pxtal_event.instr
+*
+* %P
+* L_min (AA) lower edge of wavelength band to be emitted from the Source
+* L_max (AA) upper edge of wavelength band to be emitted from the Source
+* NX ( ) Number of voxels along X
+* NY ( ) Number of voxels along Y
+* NZ ( ) Number of voxels along Z
+* XW (m) Width of the polycrystal hull.
+* YH (m) Height of the polycrystal hull
+* ZD (m) Depth og the polycrystal hull
+* map_fn ( ) name of file containing the orientation map
+* orts_fn ( ) name of file containing orientations
+* lau_fn ( ) name of file ocntaining the reflection list
+* AX ( ) X-component of unit cell vector a
+* ...
+* CZ ( ) Z-component of unit cell vector c
+* samplename ( ) name of the sample to produce SENJU style filenames
+* runnumber ( ) runnumber to produce SENJU style filenames
+*
+**************************************************************************/
+DEFINE INSTRUMENT Template_PXTAL(L_min=0.4, L_max=4, NX=1, NY=1, NZ=1, XW=0.01,
+    YH=0.01, ZD=0.01, string map_fn="default.map",
+    string orts_fn="default.orts",string lau_fn="Fe.lau",
+    AX = 2.886,AY = 0, AZ = 0.0, BX = 0.0, BY = 2.886, BZ = 0.0, CX = 0.0,
+    CY = 0.0, CZ = 2.886,omega=0, string samplename="C0127", int runnumber=0,
+    int side=0
+)
+
+DECLARE
+%{
+  double E_min, E_max;
+  int oidx;
+
+  long long nid;
+
+  /*The lines below have been added to deal with the polycrystalline sample*/
+  %include "read_table-lib.h"
+  int nx;                 /*Number of voxels in each direction*/
+  int ny;                 /*The number has to be the same in pixellation.m */
+  int nz;
+  int ix,iy,iz;           /*used as voxel indices*/ 
+  int xtals,crystal_miss; /*flags to keep track of whether we hit the crystal hull or no.*/
+
+  double posx,posy,posz;
+
+  t_Table *map_table,*orts_table;
+
+  Coords ao,bo,co;
+
+  /*here's where we store the orientation dependent hkl_info pointers*/
+  struct hkl_info_struct *poly_hkl_info;
+  int initd;
+
+  int sx_background;
+  /*flag to indicate whether or not this is a void in the crystal*/
+
+  double T_min,T_max;
+%}
+
+INITIALIZE
+%{
+  /*Section below added to work with the polycrystalline sample*/
+
+  /*These should come from analyzing the map file instead*/
+  nx=NX;ny=NY;nz=NZ;
+
+
+
+  /*Force components initialization to avoid inifite recursion*/
+  if (initd!=12345678){
+    initd=12345678;/*this would be very unlikely to get by accident*/
+    mcinit();
+
+    int status;
+    map_table=malloc(sizeof(t_Table));
+    orts_table=malloc(sizeof(t_Table));
+
+    if ( (status=Table_Read(orts_table,orts_fn,0))==-1){
+      fprintf(stderr,"Error (%s): Could not parse file \"%s\"\n",
+      NAME_CURRENT_COMP,orts_fn);
+      exit(-1);
+    }
+    if ( (status=Table_Read(map_table,map_fn,0))==-1){
+      fprintf(stderr,"Error (%s): Could not parse file \"%s\"\n",
+      NAME_CURRENT_COMP,map_fn);
+      exit(-1);
+    }
+
+    ao=coords_set(MC_GETPAR2(SX,ax),MC_GETPAR2(SX,ay),MC_GETPAR2(SX,az));
+    bo=coords_set(MC_GETPAR2(SX,bx),MC_GETPAR2(SX,by),MC_GETPAR2(SX,bz));
+    co=coords_set(MC_GETPAR2(SX,cx),MC_GETPAR2(SX,cy),MC_GETPAR2(SX,cz));
+
+    /*allocate memory for all orientation hkl_infos*/
+    if( (poly_hkl_info=malloc(orts_table->rows*sizeof(struct hkl_info_struct)))==NULL ){
+        fprintf(stderr,"Error (%s): Memory allocation error for orts hkl_infos, aborting.\n",NAME_CURRENT_COMP);
+        exit(-1);
+    }
+
+    /*get important parameters from actual component*/
+    char *laufn=MC_GETPAR2(SX,reflections);
+    double SC_mosaic=MC_GETPAR2(SX,mosaic);
+    double SC_mosaic_a=MC_GETPAR2(SX,mosaic_a);
+    double SC_mosaic_b=MC_GETPAR2(SX,mosaic_b);
+    double SC_mosaic_c=MC_GETPAR2(SX,mosaic_c);
+    double *SC_mosaic_ABin=NULL;
+
+    /*loop over all orientations and set up info-lists for each one.*/
+    int i;
+    for (i=0;i<orts_table->rows;i++){
+      poly_hkl_info[i]=MC_GETPAR2(SX,hkl_info);
+      /*by def. we are dealing with crystal prms. in real space*/
+      poly_hkl_info[i].recip=0;
+
+      /*apply rotation to crystal vectors*/
+      Coords a,b,c;
+      Rotation U;
+      memcpy(*U,&(orts_table->data[i*9]),sizeof(U[0][0])*9);
+      a=rot_apply(U,ao);
+      b=rot_apply(U,bo);
+      c=rot_apply(U,co);
+      /*set the crystal parameters to the rotated ones*/
+      coords_get(a,&(poly_hkl_info[i].m_ax), &(poly_hkl_info[i].m_ay),
+      &(poly_hkl_info[i].m_az));
+      coords_get(b,&(poly_hkl_info[i].m_bx), &(poly_hkl_info[i].m_by),
+      &(poly_hkl_info[i].m_bz));
+      coords_get(c,&(poly_hkl_info[i].m_cx), &(poly_hkl_info[i].m_cy),
+      &(poly_hkl_info[i].m_cz));
+
+      /*call read_hkl_list function*/
+      if (!read_hkl_data(laufn, &(poly_hkl_info[i]), SC_mosaic, SC_mosaic_a,
+      SC_mosaic_b, SC_mosaic_c, SC_mosaic_ABin))
+        exit(-1);
+
+
+    }
+    /*This should only be done once*/
+    /*adjust the tunnelling probability to avoid statistical extinction*/
+    int nmax;
+    if (NX>NY) nmax=NX;
+    else nmax=NY;
+    if(nmax<NZ) nmax=NZ;
+
+    MC_GETPAR2(SX,p_transmit)=exp(log(MC_GETPAR2(SX,p_transmit))/(double)nmax);
+    /*end of polycrystal*/
+    
+    return;
+  }else{
+    /*this block gets done before component initialization*/
+    /*time limits for the PSD TOF_monitor*/
+    double vmax=K2V*( 2*M_PI/( L_min*(1-0.01) ) );
+    double vmin=K2V*( 2*M_PI/( L_max*(1+0.01) ) );
+
+    T_min=20/vmax * 1e6;
+    T_max=20/vmin * 1e6;
+    printf("INFO: %g %g \n",T_min,T_max);
+  }
+%}
+
+TRACE
+
+COMPONENT origin = Progress_bar()
+AT (0,0,0) ABSOLUTE
+EXTEND
+%{
+ xtals=0;
+%}
+
+COMPONENT mod = SNS_source(
+  filename="source_BL18.txt",
+  xwidth=0.1, yheight=0.1,
+  dist = 20.0,
+  focus_xw = 0.041, focus_yh = 0.041,
+  Emax=pow((2*M_PI/L_min)*K2V,2.0)*VS2E, Emin=pow((2*M_PI/L_max)*K2V,2.0)*VS2E
+  ) AT (0,0,0) RELATIVE origin
+
+/*Uncomment the section below to get a pencil beam*/
+/*
+COMPONENT mod=Modr_dcHPb_flux(
+	xws=0.1, yhs=0.1, angle=0.0,
+	Emin=E_min, Emax=E_max,
+  dist = 15.19,
+  xw = 0.041, yh = 0.041
+  ) AT (0,0,0)  RELATIVE origin
+*/
+
+
+/******************/
+/*sample position*/
+/****************/
+
+COMPONENT psdsamp = PSD_monitor(
+ xwidth = 0.0512, yheight = 0.0512,restore_neutron=1,
+ nx = 128, ny = 128, filename = "PSD_samp.txt"
+ ) AT (0,0,20) RELATIVE origin
+
+COMPONENT tofsampl = TOF_monitor(
+  xwidth=0.0512, yheight=0.0512, restore_neutron=1, nt=2424, tmin=1, tmax=40000,
+  filename="TOF_samp.txt"
+) AT (0,0,0) RELATIVE PREVIOUS
+
+COMPONENT lsamp = L_monitor(
+  xwidth=0.0512, yheight=0.0512, restore_neutron=1,Lmin=0, Lmax=20, nL=100,
+  filename="L_samp.txt"
+)AT (0,0,0)RELATIVE PREVIOUS
+
+COMPONENT splitpoint = Arm()
+AT(0,0,0) RELATIVE PREVIOUS
+EXTEND
+%{
+ ix=iy=iz=-1;
+%}
+
+COMPONENT sx_hull=Arm()
+AT(0,0,0) RELATIVE PREVIOUS
+ROTATED (0,omega,0) RELATIVE origin
+EXTEND
+%{
+  do {
+    double xw,yh,zd;
+    xw=nx*MC_GETPAR2(SX,xwidth);
+    yh=ny*MC_GETPAR2(SX,yheight);
+    zd=nz*MC_GETPAR2(SX,zdepth);
+    crystal_miss=0;
+    int s;
+    double t0,t1;
+    if ( (s=box_intersect(&t0,&t1,x,y,z,vx,vy,vz,xw,yh,zd) )){
+      /*miss crystal hull or already past it*/
+      if(s==0 || t1<=0){
+        crystal_miss=1;
+        break;
+      }
+
+      if(t0>0){
+        PROP_DT(t0+DBL_EPSILON);
+      }
+      /*find out which subcrystal we hit. The dbl_eps are there to protect
+      against rounding errors which may occur in the propagation routines so
+      the neutron does not switch to the next subcrystal*/
+      int iix,iiy,iiz;
+      iix = floor((x + xw*0.5)*nx/xw);
+      iiy = floor((y + yh*0.5)*ny/yh);
+      iiz = floor((z + zd*0.5)*nz/zd);
+      if (iiz==nz || iiz<0 || iix==nx || iix<0 || iiy==ny || iiy<0 ){
+        /*Neutron is outside the crystal hull. This should never happen*/
+        fprintf(stderr,"Warning (%s): Neutron has unpxectedly left the crystal hull: (ix,iy,iz) = (%d %d %d) (x,y,z)=(%g %g %g). Terminating\n",NAME_CURRENT_COMP,iix,iiy,iiz,x,y,z);
+        ABSORB;
+      }
+      /*avoid getting stuck on a boundary*/
+      int count=0;
+      if(iix == ix && iiy==iy && iiz==iz){
+        /*neutron is still in the same voxel as before - move it to enter the
+        next one.*/
+        //fprintf(stderr,"I am stuck...hopping to try to get unstuck.\n");
+        //fprintf(stderr,"ix,iy,iz= %d %d %d nid=%ld\n",ix,iy,iz,nid);
+        PROP_DT(DBL_EPSILON*10.0);
+        iix = floor((x + xw*0.5)*nx/xw);
+        iiy = floor((y + yh*0.5)*ny/yh);
+        iiz = floor((z + zd*0.5)*nz/zd);
+        if(iix == ix && iiy==iy && iiz==iz){
+          fprintf(stderr,"I am still stuck...terminating neutron.\n");
+          ABSORB;
+        }
+      }
+
+      ix=iix;iy=iiy;iz=iiz;
+
+      //SCATTER;
+
+      /*inject the right hkl_info struct and carry over the "old" neutron ki*/
+      /* to skip the orientation search.*/
+      /*orientation index is in the 4th col of map_table. -1 since array is*/
+      /*zero-indexed.*/
+      oidx=Table_Index(*map_table,ix*(ny*nz)+iy*nz+iz,3)-1;
+      double kix_carry=MC_GETPAR(SX,hkl_info).kix;
+      double kiy_carry=MC_GETPAR(SX,hkl_info).kiy;
+      double kiz_carry=MC_GETPAR(SX,hkl_info).kiz;
+      MC_GETPAR(SX,hkl_info)=(poly_hkl_info[oidx]);
+      MC_GETPAR(SX,hkl_info).kix=kix_carry;
+      MC_GETPAR(SX,hkl_info).kiy=kiy_carry;
+      MC_GETPAR(SX,hkl_info).kiz=kiz_carry;
+
+      posx=(ix-nx*0.5+.5)*xw/nx;
+      posy=(iy-ny*0.5+.5)*yh/ny;
+      posz=(iz-nz*0.5+.5)*zd/nz;
+      /*translate neutron to account for crystal centre position*/
+      x-=posx;y-=posy;z-=posz;
+
+      if(oidx!=-1){
+        sx_background=0;
+      }else{
+        /*This is a void in the polycrystal*/
+        sx_background=1;
+      }
+    }else{
+      /*we miss the compound crystal completely so flag that*/
+      crystal_miss=1;
+    }
+  }while(0);
+%}
+JUMP sx_exit WHEN (crystal_miss)
+
+COMPONENT SX = Single_crystal(
+    reflections = lau_fn,
+    xwidth = XW/(double)NX, yheight = YH/(double)NY,
+    zdepth = ZD/(double)NZ, delta_d_d = 0.01, mosaic = 0.01,sigma_inc=0.4,
+    sigma_abs=2.56,barns=1,
+    ax = AX, ay = AY, az = AZ, bx = BX, by = BY, bz = BZ, cx = CX,cy = CY,
+    cz = CZ,
+    p_transmit = 0.9)
+WHEN (!sx_background) AT (0, 0, 0) RELATIVE sx_hull
+EXTEND
+%{
+#ifdef MCSTAS_DEBUG
+  printf("I have gone through a crystal: scatter=%d, oidx=%d\n",mcScattered,oidx);
+#endif
+  do {
+    if(SCATTERED) xtals++;
+    int s;
+    double t0,t1;
+    if ( (s=box_intersect(&t0,&t1,x,y,z,vx,vy,vz,xwidth,yheight,zdepth) ) && t1>0 ){
+      PROP_DT(t1+DBL_EPSILON);
+    }
+    /*transform back to regular coordinates*/
+    x+=posx;y+=posy;z+=posz;
+    SCATTER;
+  }while(0);
+%}
+
+COMPONENT SX_background=Arm()
+WHEN (sx_background) AT(0,0,0) RELATIVE sx_hull
+EXTEND
+%{
+#ifdef MCSTAS_DEBUG
+  printf("I have gone through background: scatter=%d\n",mcScattered);
+#endif
+  do {
+    int s;
+    double t0,t1;
+    if ( (s=box_intersect(&t0,&t1,x,y,z,vx,vy,vz,MC_GETPAR2(SX,xwidth),MC_GETPAR2(SX,yheight),MC_GETPAR2(SX,zdepth) ) ) && t1>0 ){
+      PROP_DT(t1+DBL_EPSILON);
+    }
+    /*transform back to regular coordinates*/
+    x+=posx;y+=posy;z+=posz;
+    SCATTER;
+  }while(0);
+%}
+
+COMPONENT sx_exit = Arm()
+AT(0,0,0) RELATIVE sx_hull
+JUMP sx_hull WHEN (crystal_miss==0)
+
+COMPONENT bs_arm = Arm()
+AT(0,0,0) RELATIVE PREVIOUS
+EXTEND
+%{
+  if (!xtals) ABSORB;
+%}
+
+COMPONENT psd_tof = PSD_TOF_monitor(
+    xwidth=0.028, yheight=0.028, nx=256, ny=256, tmin=T_min, tmax=T_max, nt=3, filename="psd_tof",
+    restore_neutron=1)
+AT(0,0,0.05) RELATIVE psdsamp
+GROUP g1
+
+COMPONENT psd_anton_arm = Arm()
+AT(0,0,0) RELATIVE PREVIOUS
+GROUP g1
+EXTEND
+%{
+    SCATTER;
+%}
+
+/* Here's the 4pi detector*/
+
+COMPONENT 4pi_psd=PSD_monitor_4PI(
+    nx=301, ny=301,radius=0.2,filename="4pi_psd", restore_neutron=1
+)
+AT (0,0,0) RELATIVE psdsamp
+
+FINALLY
+%{
+%}
+
+END
